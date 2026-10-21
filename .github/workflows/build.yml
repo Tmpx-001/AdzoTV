@@ -1,0 +1,51 @@
+name: Build APK
+
+# Le projet est stocké dans AdzoTV.zip : on le dézippe puis on compile.
+on:
+  push:
+    branches: [ main ]
+    paths: [ "AdzoTV.zip", ".github/workflows/build.yml" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dézipper le projet
+        run: |
+          if [ ! -f AdzoTV.zip ]; then echo "AdzoTV.zip absent, rien à compiler"; exit 0; fi
+          unzip -q AdzoTV.zip -d src
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Compiler l'APK
+        if: hashFiles('AdzoTV.zip') != ''
+        working-directory: src/AdzoTV
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Renommer
+        if: hashFiles('AdzoTV.zip') != ''
+        run: cp src/AdzoTV/app/build/outputs/apk/release/app-release.apk AdzoTV.apk
+
+      # Toujours au même endroit :
+      # https://github.com/Tmpx-001/AdzoTV/releases/latest/download/AdzoTV.apk
+      - name: Publier
+        if: hashFiles('AdzoTV.zip') != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: ADZO TV 1.0.${{ github.run_number }}
+          make_latest: true
+          files: AdzoTV.apk
